@@ -1,0 +1,121 @@
+Directory:
+Dataset/
+---Training/
+----Healthy
+----Tumor
+---Validation/
+----Healthy
+----Tumor
+Drive link: https://drive.google.com/drive/folders/1dKLZM4la5LMt56PWHA0J9NPF3H9MvX5Z?usp=drive_link
+Code:
+import tensorflow as tf
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
+from tensorflow.keras.applications import ResNet50
+from tensorflow.keras.models import Model
+from tensorflow.keras.layers import Dense, GlobalAveragePooling2D, Dropout
+from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
+import matplotlib.pyplot as plt
+# =====================
+# Paths
+# =====================
+train_dir = "training"
+val_dir = "validation"
+# =====================
+# Parameters
+# =====================
+img_size = (256, 256)
+batch_size = 32
+epochs = 500
+# =====================
+# Data Generators
+# =====================
+train_datagen = ImageDataGenerator(
+    rescale=1./255,
+    rotation_range=15,
+    zoom_range=0.2,
+    horizontal_flip=True
+)
+val_datagen = ImageDataGenerator(rescale=1./255)
+train_gen = train_datagen.flow_from_directory(
+    train_dir,
+    target_size=img_size,
+    batch_size=batch_size,
+    class_mode="categorical"
+)
+val_gen = val_datagen.flow_from_directory(
+    val_dir,
+    target_size=img_size,
+    batch_size=batch_size,
+    class_mode="categorical"
+)
+# =====================
+# Pretrained Model
+# =====================
+base_model = ResNet50(weights="imagenet", include_top=False, input_shape=(256,256,3))
+base_model.trainable = False  # freeze pretrained layers
+x = base_model.output
+x = GlobalAveragePooling2D()(x)
+x = Dense(256, activation="relu")(x)
+x = Dropout(0.5)(x)
+output = Dense(2, activation="softmax")(x)
+model = Model(inputs=base_model.input, outputs=output)
+# =====================
+# Compile
+# =====================
+model.compile(
+    optimizer=tf.keras.optimizers.Adam(learning_rate=1e-4),
+    loss="categorical_crossentropy",
+    metrics=["accuracy"]
+)
+model.summary()
+# =====================
+# Callbacks (Early Stopping)
+# =====================
+early_stop = EarlyStopping(
+    monitor="val_loss",
+    patience=5,
+    restore_best_weights=True
+)
+checkpoint = ModelCheckpoint(
+    "best_tumor_model.h5",
+    monitor="val_loss",
+    save_best_only=True
+)
+# =====================
+# Train
+# =====================
+history = model.fit(
+    train_gen,
+    validation_data=val_gen,
+    epochs=epochs,
+    callbacks=[early_stop, checkpoint]
+)
+# =====================
+# Plot Loss & Accuracy
+# =====================
+plt.figure(figsize=(12,5))
+# Loss
+plt.subplot(1,2,1)
+plt.plot(history.history["loss"], label="Training Loss")
+plt.plot(history.history["val_loss"], label="Validation Loss")
+plt.title("Loss")
+plt.xlabel("Epoch")
+plt.ylabel("Loss")
+plt.legend()
+# Accuracy
+plt.subplot(1,2,2)
+plt.plot(history.history["accuracy"], label="Training Accuracy")
+plt.plot(history.history["val_accuracy"], label="Validation Accuracy")
+plt.title("Accuracy")
+plt.xlabel("Epoch")
+plt.ylabel("Accuracy")
+plt.legend()
+plt.show()
+Try the code with different models:from tensorflow.keras.applications import ResNet50
+base_model = ResNet50(weights="imagenet", include_top=False, input_shape=(256,256,3))
+from tensorflow.keras.applications import MobileNetV2
+base_model = MobileNetV2(weights="imagenet", include_top=False, input_shape=(256,256,3))
+from tensorflow.keras.applications import DenseNet121
+base_model = DenseNet121(weights="imagenet", include_top=False, input_shape=(256,256,3))
+from tensorflow.keras.applications import EfficientNetB0
+base_model = EfficientNetB0(weights="imagenet", include_top=False, input_shape=(256,256,3))
